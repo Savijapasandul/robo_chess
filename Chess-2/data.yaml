@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 13
+names: ['black-bishop', 'black-king', 'black-knight', 'black-pawn', 'black-queen', 'black-rook', 'chess-board', 'white-bishop', 'white-king', 'white-knight', 'white-pawn', 'white-queen', 'white-rook']
+
+roboflow:
+  workspace: savijas-workspace
+  project: chess-g5x1b-wx2jr
+  version: 2
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/savijas-workspace/chess-g5x1b-wx2jr/dataset/2
