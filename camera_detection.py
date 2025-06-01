@@ -11,8 +11,8 @@ class YOLOv11:
         # Example: return [{'bbox': [x, y, w, h], 'confidence': 0.9, 'class': 'person'}]
         return []
 
-model = YOLOv11('yolo11n.pt')
-
+# model = YOLOv11('yolo11n.pt')
+model = YOLOv11('best.pt')
 cap = cv2.VideoCapture(2)  # USB webcam index 2
 
 while True:
