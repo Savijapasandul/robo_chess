@@ -1,29 +1,35 @@
-from ultralytics import YOLO
 import cv2
 
-model = YOLO('/home/savija/projects/robo_chess/runs/detect/train/weights/last.pt')
-cap = cv2.VideoCapture(0)
+# Replace this with your actual YOLOv11 model loading and inference code
+class YOLOv11:
+    def __init__(self, model_path):
+        # Load your YOLOv11 model here
+        pass
 
-if not cap.isOpened():
-    print("Failed to open camera.")
-    exit()
+    def detect(self, frame):
+        # Run detection and return results
+        # Example: return [{'bbox': [x, y, w, h], 'confidence': 0.9, 'class': 'person'}]
+        return []
+
+model = YOLOv11('yolo11n.pt')
+
+cap = cv2.VideoCapture(2)  # USB webcam index 2
 
 while True:
-    success, frame = cap.read()
-    if not success:
-        print("Failed to capture frame.")
+    ret, frame = cap.read()
+    if not ret:
         break
 
-    results = model(frame, show=True)
+    detections = model.detect(frame)
 
-    for result in results:
-        for box in result.boxes:
-            class_id = int(box.cls[0])
-            name = model.names[class_id]
-            confidence = float(box.conf[0])
-            print(f"Detected {name} with {confidence:.2f} confidence")
+    # Draw detections
+    for det in detections:
+        x, y, w, h = det['bbox']
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(frame, f"{det['class']} {det['confidence']:.2f}", (x, y - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-    # Break on 'q' key press
+    cv2.imshow('YOLOv11 Detection', frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
