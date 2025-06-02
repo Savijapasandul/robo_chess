@@ -1,303 +1,186 @@
 import tkinter as tk
-import chess
 from tkinter import messagebox
+import chess
+from stockfish import Stockfish
 
-SQUARE_SIZE = 60
-ANIMATION_STEPS = 15
-ANIMATION_DELAY = 0.03  # seconds per animation step
 
-PIECE_UNICODE = {
-    'P': '♙', 'N': '♘', 'B': '♗', 'R': '♖', 'Q': '♕', 'K': '♔',
-    'p': '♟', 'n': '♞', 'b': '♝', 'r': '♜', 'q': '♛', 'k': '♚'
-}
-
-class ChessGUIWithFeedback:
+class RoboChessApp:
     def __init__(self, root):
-        self.board = chess.Board()
         self.root = root
-        self.selected = None
-        self.animating = False
+        self.root.title("RoboChess")
+        self.board = chess.Board()
+        self.selected_piece = None
+        self.move_history = []
 
-        # Main frame to hold board and feedback side by side
-        self.main_frame = tk.Frame(root)
-        self.main_frame.pack()
+        # Path to Stockfish binary
+        self.stockfish = Stockfish(path="/home/savija/projects/robo_chess/stockfish-ubuntu-x86-64-avx2/stockfish/stockfish-ubuntu-x86-64-avx2", parameters={"Threads": 2, "Minimum Thinking Time": 30})
+        self.stockfish.set_skill_level(5)
 
-        # Canvas for chessboard + rails, add margin for rails (20px)
-        canvas_width = 8 * SQUARE_SIZE + 40
-        canvas_height = 8 * SQUARE_SIZE + 40
-        self.canvas = tk.Canvas(self.main_frame, width=canvas_width, height=canvas_height)
-        self.canvas.grid(row=0, column=0, padx=10, pady=10)
+        self.start_game()
 
-        # Info frame on the right for feedback
-        self.info_frame = tk.Frame(self.main_frame)
-        self.info_frame.grid(row=0, column=1, sticky='ns', padx=10, pady=10)
+    def start_game(self):
+        self.clear_screen()
+        self.board.reset()
+        self.move_history.clear()
+        self.stockfish.set_fen_position(self.board.fen())
+        self.create_game_ui()
 
-        self.turn_label = tk.Label(self.info_frame, text="", font=("Arial", 16, "bold"), pady=10)
-        self.turn_label.pack()
+    def create_game_ui(self):
+        container = tk.Frame(self.root, bg="#222")
+        container.pack(padx=10, pady=10)
 
-        self.move_listbox = tk.Listbox(self.info_frame, width=25, height=20, font=("Consolas", 12))
-        self.move_listbox.pack(fill=tk.BOTH, expand=True)
+        # Chessboard frame
+        board_container = tk.Frame(container, bg="#222")
+        board_container.grid(row=0, column=0, padx=10)
 
-        self.new_game_button = tk.Button(self.info_frame, text="New Game", command=self.new_game, state=tk.DISABLED)
-        self.new_game_button.pack(pady=10)
+        # Labels for files A–H (top and bottom)
+        for i in range(8):
+            tk.Label(board_container, text=chr(65 + i), fg="white", bg="#222", font=("Arial", 10)).grid(row=0, column=i+1)
+            tk.Label(board_container, text=chr(65 + i), fg="white", bg="#222", font=("Arial", 10)).grid(row=9, column=i+1)
 
-        self.draw_board()
-        self.update_feedback()
+        # Labels for ranks 8–1 (left and right)
+        for i in range(8):
+            tk.Label(board_container, text=str(8 - i), fg="white", bg="#222", font=("Arial", 10)).grid(row=i+1, column=0)
+            tk.Label(board_container, text=str(8 - i), fg="white", bg="#222", font=("Arial", 10)).grid(row=i+1, column=9)
 
+        self.canvas = tk.Canvas(board_container, width=480, height=480)
+        self.canvas.grid(row=1, column=1, rowspan=8, columnspan=8)
         self.canvas.bind("<Button-1>", self.on_click)
 
-    def draw_board(self):
-        self.canvas.delete("all")
-        # Draw reference rails (letters and numbers)
-        for i in range(8):
-            # Letters at bottom and top
-            letter = chr(ord('A') + i)
-            x = 20 + i * SQUARE_SIZE + SQUARE_SIZE // 2
-            self.canvas.create_text(x, 8 * SQUARE_SIZE + 30, text=letter, font=("Arial", 14, "bold"))
-            self.canvas.create_text(x, 10, text=letter, font=("Arial", 14, "bold"))
-            # Numbers at left and right
-            number = str(8 - i)
-            y = 20 + i * SQUARE_SIZE + SQUARE_SIZE // 2
-            self.canvas.create_text(10, y, text=number, font=("Arial", 14, "bold"))
-            self.canvas.create_text(8 * SQUARE_SIZE + 30, y, text=number, font=("Arial", 14, "bold"))
+        self.squares = {}
+        for r in range(8):
+            for c in range(8):
+                color = "#f0d9b5" if (r + c) % 2 == 0 else "#b58863"
+                self.squares[(r, c)] = self.canvas.create_rectangle(c * 60, r * 60, (c + 1) * 60, (r + 1) * 60, fill=color)
 
-        # Draw squares and pieces
-        for row in range(8):
-            for col in range(8):
-                x1 = 20 + col * SQUARE_SIZE
-                y1 = 20 + row * SQUARE_SIZE
-                x2 = x1 + SQUARE_SIZE
-                y2 = y1 + SQUARE_SIZE
+        # Side Panel
+        side_panel = tk.Frame(container, bg="#333")
+        side_panel.grid(row=0, column=1, padx=20)
 
-                color = "#F0D9B5" if (row + col) % 2 == 0 else "#B58863"
-                self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline="")
+        self.turn_label = tk.Label(side_panel, text="White's Turn", font=("Arial", 14), fg="white", bg="#333")
+        self.turn_label.pack(pady=(0, 10))
 
-                square = chess.square(col, 7 - row)
-                piece = self.board.piece_at(square)
-                if piece:
-                    tag = f"piece_{col}_{row}"
-                    self.canvas.create_text(
-                        x1 + SQUARE_SIZE // 2,
-                        y1 + SQUARE_SIZE // 2,
-                        text=PIECE_UNICODE[piece.symbol()],
-                        font=("Arial", 32),
-                        tags=tag
-                    )
+        tk.Label(side_panel, text="Move History", font=("Arial", 12), fg="white", bg="#333").pack()
+        self.history_box = tk.Text(side_panel, height=20, width=25, font=("Courier", 10), bg="#222", fg="white", state="disabled")
+        self.history_box.pack(pady=5)
 
-        # Highlight selected square
-        if self.selected is not None:
-            sel_col = chess.square_file(self.selected)
-            sel_row = 7 - chess.square_rank(self.selected)
-            x1 = 20 + sel_col * SQUARE_SIZE
-            y1 = 20 + sel_row * SQUARE_SIZE
-            x2 = x1 + SQUARE_SIZE
-            y2 = y1 + SQUARE_SIZE
-            self.canvas.create_rectangle(x1, y1, x2, y2, outline="blue", width=3)
+        reset_button = tk.Button(side_panel, text="Reset Game", command=self.reset_game, font=("Arial", 12), bg="#FF5722", fg="white")
+        reset_button.pack(pady=5)
 
-    def update_feedback(self):
-        turn = "White" if self.board.turn else "Black"
-        status_msg = f"Turn: {turn}"
-
-        # Add check info if not game over
-        if not self.board.is_game_over():
-            if self.board.is_check():
-                status_msg += " - Check!"
-        else:
-            # Game is over, determine reason
-            if self.board.is_checkmate():
-                winner = "Black" if self.board.turn else "White"
-                status_msg = f"Checkmate! {winner} wins!"
-            elif self.board.is_stalemate():
-                status_msg = "Stalemate! Draw!"
-            elif self.board.is_insufficient_material():
-                status_msg = "Draw due to insufficient material."
-            elif self.board.can_claim_fifty_moves():
-                status_msg = "Draw by fifty-move rule."
-            elif self.board.can_claim_threefold_repetition():
-                status_msg = "Draw by threefold repetition."
-            else:
-                status_msg = "Game over."
-
-        self.turn_label.config(text=status_msg)
-
-        self.move_listbox.delete(0, tk.END)
-        moves = list(self.board.move_stack)
-
-        temp_board = chess.Board()
-        for i in range(0, len(moves), 2):
-            san_1 = temp_board.san(moves[i])
-            temp_board.push(moves[i])
-            move_text = f"{i // 2 + 1}. {san_1}"
-
-            if i + 1 < len(moves):
-                san_2 = temp_board.san(moves[i + 1])
-                temp_board.push(moves[i + 1])
-                move_text += f" {san_2}"
-
-            self.move_listbox.insert(tk.END, move_text)
-
-
-    def new_game(self):
-        self.board.reset()
-        self.selected = None
-        self.new_game_button.config(state=tk.DISABLED)
-        self.draw_board()
-        self.update_feedback()
-
-    def check_game_end(self):
-        if self.board.is_game_over():
-            result = self.board.result()
-            if result == "1-0":
-                msg = "White wins!"
-            elif result == "0-1":
-                msg = "Black wins!"
-            else:
-                msg = "Draw!"
-            answer = messagebox.askyesno("Game Over", f"{msg}\nStart a new game?")
-            if answer:
-                self.new_game_button.config(state=tk.NORMAL)
-                self.new_game()
-            else:
-                self.new_game_button.config(state=tk.NORMAL)
-
-    def animate_move(self, move):
-        self.animating = True
-
-        start_square = move.from_square
-        end_square = move.to_square
-
-        start_col = chess.square_file(start_square)
-        start_row = 7 - chess.square_rank(start_square)
-        end_col = chess.square_file(end_square)
-        end_row = 7 - chess.square_rank(end_square)
-
-        piece = self.board.piece_at(start_square)
-        if not piece:
-            self.animating = False
-            return
-
-        piece_symbol = PIECE_UNICODE[piece.symbol()]
-
-        start_x = 20 + start_col * SQUARE_SIZE + SQUARE_SIZE // 2
-        start_y = 20 + start_row * SQUARE_SIZE + SQUARE_SIZE // 2
-        end_x = 20 + end_col * SQUARE_SIZE + SQUARE_SIZE // 2
-        end_y = 20 + end_row * SQUARE_SIZE + SQUARE_SIZE // 2
-
-        # Remove the piece from start square during animation
-        self.canvas.delete(f"piece_{start_col}_{start_row}")
-
-        step = 0
-        moving_piece = self.canvas.create_text(start_x, start_y, text=piece_symbol, font=("Arial", 32), tags="anim_piece")
-
-        def step_animation():
-            nonlocal step
-            if step >= ANIMATION_STEPS:
-                self.canvas.delete("anim_piece")
-                self.animating = False
-                # After animation finishes, push move, redraw and update feedback
-                self.board.push(move)
-                self.selected = None
-                self.draw_board()
-                self.update_feedback()
-                self.check_game_end()
-                return
-
-            interp_x = start_x + (end_x - start_x) * step / ANIMATION_STEPS
-            interp_y = start_y + (end_y - start_y) * step / ANIMATION_STEPS
-            self.canvas.coords(moving_piece, interp_x, interp_y)
-            step += 1
-            self.canvas.after(int(ANIMATION_DELAY * 1000), step_animation)
-
-        step_animation()
-
-    def ask_promotion_buttons(self):
-        # Popup window to select promotion piece by buttons
-        promo_win = tk.Toplevel(self.root)
-        promo_win.title("Pawn Promotion")
-        promo_win.geometry("+%d+%d" % (self.root.winfo_rootx()+100, self.root.winfo_rooty()+100))
-        promo_win.transient(self.root)  # set to be on top of root
-        
-        promo_win.update_idletasks()
-        promo_win.deiconify()
-        promo_win.grab_set()  # modal
-
-        chosen = {'piece': None}
-
-        def choose(piece_type):
-            chosen['piece'] = piece_type
-            promo_win.destroy()
-
-        label = tk.Label(promo_win, text="Promote to:", font=("Arial", 14))
-        label.pack(padx=10, pady=10)
-
-        buttons_frame = tk.Frame(promo_win)
-        buttons_frame.pack(padx=10, pady=10)
-
-        pieces = [
-            ('Queen', chess.QUEEN),
-            ('Rook', chess.ROOK),
-            ('Bishop', chess.BISHOP),
-            ('Knight', chess.KNIGHT),
-        ]
-
-        for (name, pt) in pieces:
-            btn = tk.Button(buttons_frame, text=name, width=8, command=lambda pt=pt: choose(pt))
-            btn.pack(side=tk.LEFT, padx=5)
-
-        promo_win.wait_window()
-        return chosen['piece'] if chosen['piece'] is not None else chess.QUEEN
-
+        self.update_board_display()
 
     def on_click(self, event):
-        if self.animating:
-            return  # ignore clicks while animating
+        col = event.x // 60
+        row = event.y // 60
 
-        x_click = event.x
-        y_click = event.y
+        if self.selected_piece:
+            start_row, start_col = self.selected_piece[1], self.selected_piece[2]
+            start_sq = chess.square(start_col, 7 - start_row)
+            end_sq = chess.square(col, 7 - row)
+            move = chess.Move(start_sq, end_sq)
 
-        # Ignore clicks on rails area (less than 20 pixels margin)
-        if x_click < 20 or y_click < 20:
-            return
-
-        col = (x_click - 20) // SQUARE_SIZE
-        row = (y_click - 20) // SQUARE_SIZE
-
-        if not (0 <= col < 8 and 0 <= row < 8):
-            return
-
-        square = chess.square(col, 7 - row)
-
-        if self.selected is None:
-            piece = self.board.piece_at(square)
-            if piece and piece.color == self.board.turn:
-                self.selected = square
-                self.draw_board()
-        else:
-            piece = self.board.piece_at(self.selected)
-            if piece is None:
-                self.selected = None
-                self.draw_board()
-                return
-
-            promotion_rank = 7 if piece.color == chess.WHITE else 0
-            if piece.piece_type == chess.PAWN and chess.square_rank(square) == promotion_rank:
-                promo_piece = self.ask_promotion_buttons()
-                move = chess.Move(self.selected, square, promotion=promo_piece)
-            else:
-                move = chess.Move(self.selected, square)
+            if self.board.piece_at(start_sq).piece_type == chess.PAWN and (7 - row == 0 or 7 - row == 7):
+                move.promotion = chess.QUEEN
 
             if move in self.board.legal_moves:
-                self.animate_move(move)
-            else:
-                clicked_piece = self.board.piece_at(square)
-                if clicked_piece and clicked_piece.color == self.board.turn:
-                    self.selected = square
-                else:
-                    self.selected = None
-                self.draw_board()
+                san_move = self.board.san(move)  # ✅ Get SAN before pushing
+                self.board.push(move)
+                self.stockfish.set_fen_position(self.board.fen())
+                self.selected_piece = None
+                self.log_move(san_move)
+                self.update_board_display()
 
+                if self.board.is_game_over():
+                    self.game_over_message()
+                    return
+
+                self.make_ai_move()
+            else:
+                messagebox.showerror("Invalid Move", "That move is not allowed.")
+        else:
+            piece = self.board.piece_at(chess.square(col, 7 - row))
+            if piece and piece.color == chess.WHITE:
+                self.selected_piece = (piece, row, col)
+                self.update_board_display()
+
+    def make_ai_move(self):
+        if self.board.is_game_over():
+            return
+
+        self.stockfish.set_fen_position(self.board.fen())
+        best_move = self.stockfish.get_best_move()
+        if best_move:
+            move = chess.Move.from_uci(best_move)
+            if move in self.board.legal_moves:
+                san_move = self.board.san(move)  # ✅ Get SAN before pushing
+                self.board.push(move)
+                self.log_move(san_move)
+                self.update_board_display()
+
+                if self.board.is_game_over():
+                    self.game_over_message()
+
+    def update_board_display(self):
+        self.canvas.delete("piece")
+        for r in range(8):
+            for c in range(8):
+                square = chess.square(c, 7 - r)
+                piece = self.board.piece_at(square)
+                if piece:
+                    symbol = self.get_piece_symbol(piece)
+                    self.draw_piece(c * 60 + 30, r * 60 + 30, symbol)
+
+        turn = "White" if self.board.turn else "Black"
+        self.turn_label.config(text=f"{turn}'s Turn")
+
+    def draw_piece(self, x, y, symbol):
+        self.canvas.create_text(x, y, text=symbol, font=("Arial", 32), tags="piece")
+
+    def get_piece_symbol(self, piece):
+        symbols = {
+            chess.PAWN: '♟' if piece.color == chess.BLACK else '♙',
+            chess.ROOK: '♜' if piece.color == chess.BLACK else '♖',
+            chess.KNIGHT: '♞' if piece.color == chess.BLACK else '♘',
+            chess.BISHOP: '♝' if piece.color == chess.BLACK else '♗',
+            chess.QUEEN: '♛' if piece.color == chess.BLACK else '♕',
+            chess.KING: '♚' if piece.color == chess.BLACK else '♔',
+        }
+        return symbols[piece.piece_type]
+
+    def log_move(self, san):
+        self.move_history.append(san)
+        self.history_box.config(state="normal")
+        self.history_box.delete(1.0, tk.END)
+        for idx in range(0, len(self.move_history), 2):
+            line = f"{idx//2 + 1}. {self.move_history[idx]}"
+            if idx + 1 < len(self.move_history):
+                line += f"  {self.move_history[idx + 1]}"
+            self.history_box.insert(tk.END, line + "\n")
+        self.history_box.config(state="disabled")
+
+    def reset_game(self):
+        if messagebox.askyesno("Reset Game", "Do you really want to reset the game?"):
+            self.start_game()
+
+    def game_over_message(self):
+        if self.board.is_checkmate():
+            winner = "Black Wins" if self.board.turn else "White Wins"
+        elif self.board.is_stalemate():
+            winner = "Draw (Stalemate)"
+        elif self.board.is_insufficient_material():
+            winner = "Draw (Insufficient Material)"
+        else:
+            winner = "Game Over"
+        messagebox.showinfo("Game Over", winner)
+        self.start_game()
+
+    def clear_screen(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+
+# Run the app
 if __name__ == "__main__":
     root = tk.Tk()
-    root.title("Chess Thinker GUI")
-    ChessGUIWithFeedback(root)
+    app = RoboChessApp(root)
     root.mainloop()
