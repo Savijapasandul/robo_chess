@@ -3,7 +3,8 @@ import time
 from ultralytics import YOLO
 
 # Load the YOLOv11 model
-model = YOLO('/home/savija/projects/robo_chess/dataset/runs/detect/train2/weights/best.pt')
+# model = YOLO('/home/savija/projects/robo_chess/dataset/runs/detect/train2/weights/best.pt')
+model = YOLO('best.pt')
 
 # Open the webcam
 cap = cv2.VideoCapture(2)
