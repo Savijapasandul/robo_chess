@@ -14,7 +14,7 @@ class RoboChessApp:
 
         # Path to Stockfish binary
         self.stockfish = Stockfish(path="/home/savija/projects/robo_chess/stockfish-ubuntu-x86-64-avx2/stockfish/stockfish-ubuntu-x86-64-avx2", parameters={"Threads": 2, "Minimum Thinking Time": 30})
-        self.stockfish.set_skill_level(5)
+        self.stockfish.set_skill_level(1)
 
         self.start_game()
 
