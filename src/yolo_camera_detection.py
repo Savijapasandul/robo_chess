@@ -3,7 +3,7 @@ from ultralytics import YOLO
 
 model = YOLO("runs/detect/train4/weights/best.pt")
 
-cap = cv2.VideoCapture(3)
+cap = cv2.VideoCapture(2)
 
 if not cap.isOpened():
     print("Error: Could not open webcam")
