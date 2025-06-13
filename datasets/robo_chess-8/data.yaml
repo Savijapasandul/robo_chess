@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 5
+names: ['chessboard', 'p1', 'p2', 'p3', 'p4']
+
+roboflow:
+  workspace: savijas-workspace
+  project: robo_chess
+  version: 8
+  license: Public Domain
+  url: https://universe.roboflow.com/savijas-workspace/robo_chess/dataset/8
