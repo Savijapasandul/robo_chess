@@ -3,7 +3,7 @@ import numpy as np
 from ultralytics import YOLO
 
 # Load trained segmentation model
-model = YOLO("runs/segment/train/weights/best.pt")
+model = YOLO("runs/segment/train2/weights/best.pt")
 
 cap = cv2.VideoCapture(2)
 
