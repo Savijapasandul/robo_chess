@@ -46,27 +46,25 @@ while True:
     results = model(frame)
     masks = results[0].masks
 
-    # On the live feed: draw segmentation masks if any
+    # Process masks if any are detected
     if masks is not None and len(masks.xy) > 0:
-        # Draw all detected masks on the frame (optional: with transparency)
-        for seg_pts in masks.xy:
-            pts = np.array(seg_pts, dtype=np.int32)
-            cv2.polylines(frame, [pts], isClosed=True, color=(0, 255, 0), thickness=2)
-            cv2.fillPoly(frame, [pts], color=(0, 255, 0, 50))
-
-        # Attempt to find a chessboard mask with 4 corners and update locked corners continuously
+        # Use only the first mask to detect chessboard
         seg_pts = np.array(masks.xy[0], dtype=np.float32)
         epsilon = 0.02 * cv2.arcLength(seg_pts, True)
         approx = cv2.approxPolyDP(seg_pts, epsilon, True)
 
         if approx is not None and len(approx) == 4:
             locked_corners = order_points(approx[:, 0, :])
-            # Convert approx points to int32 before drawing
-            cv2.polylines(frame, [approx.astype(np.int32)], isClosed=True, color=(0, 0, 255), thickness=3)
-            cv2.putText(frame, "Chessboard Locked", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-    # If corners detected, show warped top-down grid window, update live
+    # Draw corner markers on the main feed
     if locked_corners is not None:
+        for (x, y) in locked_corners:
+            cv2.circle(frame, (int(x), int(y)), 6, (0, 0, 255), -1)  # red dot at each corner
+
+        # Optional visual aid
+        cv2.putText(frame, "Chessboard Locked", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+        # Perspective transform and draw grid
         dst_size = 512
         dst_pts = np.array([
             [0, 0],
