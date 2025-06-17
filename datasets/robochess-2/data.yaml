@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['chessboard']
+
+roboflow:
+  workspace: savijas-workspace
+  project: robochess-qgkkg
+  version: 2
+  license: Public Domain
+  url: https://universe.roboflow.com/savijas-workspace/robochess-qgkkg/dataset/2
