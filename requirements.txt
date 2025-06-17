@@ -1,6 +1,5 @@
 ultralytics
 opencv-python
+numpy
 python-chess
-flet
 stockfish
-
