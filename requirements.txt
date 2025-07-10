@@ -3,3 +3,8 @@ opencv-python
 numpy
 python-chess
 stockfish
+hidapi
+setuptools
+xarm
+pytest
+pywinusb
